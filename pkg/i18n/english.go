@@ -687,6 +687,8 @@ type TranslationSet struct {
 	CopyTagToClipboard                    string
 	CopyPathToClipboard                   string
 	CommitPrefixPatternError              string
+	GeneratingCommitMessageStatus         string
+	GeneratingCommitMessageFailedError    string
 	CopySelectedTextToClipboard           string
 	NoFilesStagedTitle                    string
 	NoFilesStagedPrompt                   string
@@ -1813,6 +1815,8 @@ func EnglishTranslationSet() *TranslationSet {
 		CopyPathToClipboard:                      "Copy path to clipboard",
 		CopySelectedTextToClipboard:              "Copy selected text to clipboard",
 		CommitPrefixPatternError:                 "Error in commitPrefix pattern",
+		GeneratingCommitMessageStatus:            "Generating commit message...",
+		GeneratingCommitMessageFailedError:       "Failed to generate commit message: %s",
 		NoFilesStagedTitle:                       "No files staged",
 		NoFilesStagedPrompt:                      "You have not staged any files. Commit all files?",
 		BranchNotFoundTitle:                      "Branch not found",
