@@ -9,7 +9,9 @@ import (
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/commands/opencode"
 	"github.com/jesseduffield/lazygit/pkg/config"
+	"github.com/jesseduffield/lazygit/pkg/gocui"
 	"github.com/jesseduffield/lazygit/pkg/gui/context"
 	"github.com/jesseduffield/lazygit/pkg/gui/style"
 	"github.com/jesseduffield/lazygit/pkg/gui/types"
@@ -22,6 +24,7 @@ type WorkingTreeHelper struct {
 	commitsHelper        *CommitsHelper
 	gpgHelper            *GpgHelper
 	mergeAndRebaseHelper *MergeAndRebaseHelper
+	opencodeClient       *opencode.Client
 }
 
 func NewWorkingTreeHelper(
@@ -37,6 +40,7 @@ func NewWorkingTreeHelper(
 		commitsHelper:        commitsHelper,
 		gpgHelper:            gpgHelper,
 		mergeAndRebaseHelper: mergeAndRebaseHelper,
+		opencodeClient:       opencode.NewDefaultClient(),
 	}
 }
 
@@ -218,7 +222,57 @@ func (self *WorkingTreeHelper) HandleCommitPress() error {
 		}
 	}
 
-	return self.HandleCommitPressWithMessage(initialMessage, false)
+	if initialMessage != "" {
+		return self.HandleCommitPressWithMessage(initialMessage, false)
+	}
+
+	return self.WithEnsureCommittableFiles(func() error {
+		return self.c.WithWaitingStatus(self.c.Tr.GeneratingCommitMessageStatus, func(gocui.Task) error {
+			stagedDiff, err := self.c.Git().Diff.GetDiff(true, "--")
+			if err != nil {
+				self.c.OnUIThread(func() error {
+					self.c.ErrorToast(fmt.Sprintf(self.c.Tr.GeneratingCommitMessageFailedError, err.Error()))
+					return self.openCommitMessagePanelWithMessage("")
+				})
+				return nil
+			}
+
+			generatedMessage, err := self.opencodeClient.GenerateCommitMessage(stagedDiff)
+			if err != nil {
+				self.c.OnUIThread(func() error {
+					self.c.ErrorToast(fmt.Sprintf(self.c.Tr.GeneratingCommitMessageFailedError, err.Error()))
+					return self.openCommitMessagePanelWithMessage("")
+				})
+				return nil
+			}
+
+			self.c.OnUIThread(func() error {
+				return self.openCommitMessagePanelWithMessage(generatedMessage)
+			})
+			return nil
+		})
+	})
+}
+
+func (self *WorkingTreeHelper) openCommitMessagePanelWithMessage(message string) error {
+	self.commitsHelper.OpenCommitMessagePanel(
+		&OpenCommitMessagePanelOpts{
+			CommitIndex:      context.NoCommitIndex,
+			InitialMessage:   message,
+			SummaryTitle:     self.c.Tr.CommitSummaryTitle,
+			DescriptionTitle: self.c.Tr.CommitDescriptionTitle,
+			PreserveMessage:  true,
+			OnConfirm: func(summary string, description string) error {
+				return self.handleCommit(summary, description, false)
+			},
+			OnSwitchToEditor: func(filepath string) error {
+				return self.switchFromCommitMessagePanelToEditor(filepath, false)
+			},
+			ForceSkipHooks:  false,
+			SkipHooksPrefix: self.c.UserConfig().Git.SkipHookPrefix,
+		},
+	)
+	return nil
 }
 
 func (self *WorkingTreeHelper) WithEnsureCommittableFiles(handler func() error) error {
