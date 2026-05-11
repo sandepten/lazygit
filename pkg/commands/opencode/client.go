@@ -31,7 +31,7 @@ func NewClient(baseURL, providerID, modelID string) *Client {
 }
 
 func NewDefaultClient() *Client {
-	return NewClient("http://localhost:4096", "github-copilot", "gpt-5.4-mini")
+	return NewClient("http://localhost:4096", "github-copilot", "gemini-3-flash-preview")
 }
 
 type Session struct {
