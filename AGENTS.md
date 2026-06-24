@@ -320,3 +320,34 @@ Never run `find` (or similar) from `/` or other paths outside the project. All
 third-party code we use is vendored under `vendor/`, so dependency sources are
 reachable from inside the working tree — search there instead of the host
 filesystem.
+
+## OpenCode commit message generation
+
+This repo has a local feature (not in upstream lazygit) that auto-generates
+commit messages from staged diffs using OpenCode. The feature lives in three
+files:
+
+- **`pkg/commands/opencode/client.go`** — HTTP client that talks to the OpenCode
+  server's ACP API. Auto-starts `opencode serve --pure` as a child process on
+  first use (`EnsureRunning()`), removing the need to manage a server manually.
+- **`pkg/gui/controllers/helpers/working_tree_helper.go`** — `HandleCommitPress()`
+  uses preserved messages and commit prefixes first; if neither applies, it
+  falls through to a `WithWaitingStatus` block that calls
+  `opencodeClient.GenerateCommitMessage()`.
+- **`pkg/i18n/english.go`** — two i18n strings: `GeneratingCommitMessageStatus`
+  and `GeneratingCommitMessageFailedError`.
+
+### Conflict-prone boundary
+
+`HandleCommitPress()` in `working_tree_helper.go` is the most likely conflict
+site when rebasing on upstream. Our version replaces the tail of the function:
+instead of returning directly to `HandleCommitPressWithMessage`, it checks
+`initialMessage` and, if empty, enters the OpenCode generation branch. The
+`openCommitMessagePanelWithMessage` helper is also ours. When merging
+upstream changes, preserve:
+
+1. The preserved-message and commit-prefix logic at the top (shared with
+   upstream).
+2. The `if initialMessage != ""` guard — OpenCode generation is the fallback.
+3. The `openCommitMessagePanelWithMessage` method.
+4. The `opencode` import in the import block.
